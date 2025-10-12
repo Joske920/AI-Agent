@@ -16,4 +16,16 @@ def get_files_info(working_directory, directory=".") -> str:
     if not os.path.isdir(abs_target_dir):
         return f'Error: "{directory}" is not a directory'
     
+
     
+    try:
+        lines = [f"Result for {directory if directory != '.' else 'current directory'}:"]
+        with os.scandir(full_path) as entries:
+            for item in entries:
+                lines.append(
+                    f" - {item.name}: file_size={item.stat().st_size} bytes, is_dir={item.is_dir()}"
+                )
+        return "\n".join(lines)
+    except Exception as e:
+        return(f"Error: {e}")
+
