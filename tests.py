@@ -4,8 +4,8 @@ from calculator.functions.write_file_content import write_file
 from calculator.functions.run_python_file import run_python_file
 
 def tests():
-    print(get_files_info({'directory': '.'}))
-
+    #print(get_files_info({'directory': '.'}))
+    print(get_file_content({'file_path': 'main.py'}))
     #print(get_files_info('calculator', 'pkg'))
 
     #print(run_python_file("calculator", "main.py"))
