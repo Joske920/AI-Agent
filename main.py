@@ -6,11 +6,11 @@ from dotenv import load_dotenv
 
 from prompts import system_prompt
 from call_function import call_function, available_functions
+from config import MAX_ITERS
 
 
 def main():
     load_dotenv()
-
 
     verbose = "--verbose" in sys.argv
     args = []
@@ -36,27 +36,21 @@ def main():
         types.Content(role="user", parts=[types.Part(text=user_prompt)]),
     ]
 
-    max_iterations = 20
-    for iteration in range(max_iterations):
+    iters = 0
+    while True:
+        iters += 1
+        if iters > MAX_ITERS:
+            print(f"Maximum iterations ({MAX_ITERS}) reached.")
+            sys.exit(1)
+
         try:
-            if verbose:
-                print(f"Iteration {iteration + 1}/{max_iterations}")
-            
-            response = generate_content(client, messages, verbose)
-            
-            # Check if we got a final text response (no function calls)
-            if response.text and not response.function_calls:
-                print(response.text)
+            final_response = generate_content(client, messages, verbose)
+            if final_response:
+                print("Final response:")
+                print(final_response)
                 break
-                
         except Exception as e:
-            print(f"Error during iteration {iteration + 1}: {e}")
-            if verbose:
-                import traceback
-                traceback.print_exc()
-            break
-    else:
-        print(f"Reached maximum iterations ({max_iterations}) without completion.")
+            print(f"Error in generate_content: {e}")
 
 
 def generate_content(client, messages, verbose):
@@ -71,30 +65,30 @@ def generate_content(client, messages, verbose):
         print("Prompt tokens:", response.usage_metadata.prompt_token_count)
         print("Response tokens:", response.usage_metadata.candidates_token_count)
 
-    # Add each candidate's content to the messages list
-    for candidate in response.candidates:
-        messages.append(types.Content(role="model", parts=candidate.content.parts))
+    if response.candidates:
+        for candidate in response.candidates:
+            function_call_content = candidate.content
+            messages.append(function_call_content)
 
-    # Handle function calls if any
-    if response.function_calls:
-        function_responses = []
-        for function_call_part in response.function_calls:
-            function_call_result = call_function(function_call_part, verbose)
-            if (
-                not function_call_result.parts
-                or not function_call_result.parts[0].function_response
-            ):
-                raise Exception("empty function call result")
-            if verbose:
-                print(f"-> {function_call_result.parts[0].function_response.response}")
-            function_responses.append(function_call_result.parts[0])
+    if not response.function_calls:
+        return response.text
 
-        # Add function responses to messages
-        if function_responses:
-            messages.append(types.Content(role="user", parts=function_responses))
-    
-    return response
+    function_responses = []
+    for function_call_part in response.function_calls:
+        function_call_result = call_function(function_call_part, verbose)
+        if (
+            not function_call_result.parts
+            or not function_call_result.parts[0].function_response
+        ):
+            raise Exception("empty function call result")
+        if verbose:
+            print(f"-> {function_call_result.parts[0].function_response.response}")
+        function_responses.append(function_call_result.parts[0])
 
+    if not function_responses:
+        raise Exception("no function responses generated, exiting.")
+
+    messages.append(types.Content(role="user", parts=function_responses))
 
 
 if __name__ == "__main__":
